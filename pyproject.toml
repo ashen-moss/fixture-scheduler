@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fixture-scheduler"
+version = "0.1.0"
+description = "Round-robin sports fixture scheduling library and CLI"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "ashen-moss" }]
+
+[project.scripts]
+fixtures = "fixtures.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
