@@ -32,7 +32,7 @@ Round 2
   Otters vs Hornets
 Round 3
   Falcons vs Hornets
-  Wolves vs Otters
+  Otters vs Wolves
 ```
 
 With an odd number of teams, one team sits out each round (the bye
@@ -44,6 +44,12 @@ generate_round_robin(["Falcons", "Hornets", "Wolves"])
 
 For a home-and-away season, pass `double_round=True`; the return leg
 swaps home and away for every fixture from the first leg.
+
+Home/away isn't assigned by raw position in the pairing - each team's
+recent run of home or away games is tracked, and whichever side of a
+fixture is more overdue for a change gets it, so the same team doesn't
+end up with three home games in a row just because of where it landed
+in the rotation.
 
 ## CLI usage
 
@@ -68,7 +74,8 @@ piping into a spreadsheet or another tool.
 
 Early. The scheduler itself is solid and covered by a table-driven test
 suite (`tests/test_fixtures.py`) that exercises the awkward cases: zero
-and one team, odd team counts, double round-robin, and duplicate names.
+and one team, odd team counts, double round-robin, duplicate names, and
+that home/away is balanced rather than tied to rotation position.
 Date/venue assignment and export formats beyond CSV aren't built yet.
 
 ## Development

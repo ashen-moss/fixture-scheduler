@@ -96,6 +96,40 @@ class RoundRobinTableTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             generate_round_robin(["A", "B", "A"])
 
+    def test_four_teams_home_away_is_balanced_not_positional(self):
+        # Regression check for the streak-avoiding home/away assignment,
+        # worked out by hand for four teams.
+        teams = ["A", "B", "C", "D"]
+        rounds = generate_round_robin(teams, double_round=False)
+        self.assertEqual(
+            rounds,
+            [
+                [("A", "D"), ("B", "C")],
+                [("C", "A"), ("D", "B")],
+                [("A", "B"), ("D", "C")],
+            ],
+        )
+
+    def test_breaks_are_minimized_for_four_teams(self):
+        # A "break" is a team playing the same venue in two consecutive
+        # rounds. Four teams over three rounds has a known minimum of two
+        # breaks; an assignment that only alternates the fixed team (the
+        # previous approach here) produces more.
+        teams = ["A", "B", "C", "D"]
+        rounds = generate_round_robin(teams, double_round=False)
+        venues = {team: [] for team in teams}
+        for matches in rounds:
+            for home, away in matches:
+                venues[home].append("H")
+                venues[away].append("A")
+        breaks = sum(
+            1
+            for history in venues.values()
+            for prev, cur in zip(history, history[1:])
+            if prev == cur
+        )
+        self.assertEqual(breaks, 2)
+
     def test_odd_team_bye_rotates_instead_of_always_hitting_one_team(self):
         # With 3 teams and 3 rounds, each team must sit out exactly once.
         teams = ["A", "B", "C"]
