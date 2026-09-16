@@ -1,10 +1,11 @@
 import unittest
+from datetime import date, timedelta
 from pathlib import Path
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from fixtures import generate_round_robin, total_matches
+from fixtures import generate_round_robin, schedule_fixtures, total_matches
 
 
 def _teams_played(rounds):
@@ -141,6 +142,43 @@ class RoundRobinTableTests(unittest.TestCase):
             self.assertEqual(len(missing), 1)
             sat_out.append(next(iter(missing)))
         self.assertEqual(set(sat_out), set(teams))
+
+
+class ScheduleFixturesTests(unittest.TestCase):
+    def setUp(self):
+        self.teams = ["A", "B", "C", "D"]
+        self.rounds = generate_round_robin(self.teams)
+
+    def test_dates_advance_by_interval_and_are_shared_within_a_round(self):
+        start = date(2026, 1, 3)
+        scheduled = schedule_fixtures(self.rounds, start, timedelta(days=7))
+        expected_dates = [start + timedelta(days=7) * i for i in range(len(self.rounds))]
+        for round_fixtures, expected in zip(scheduled, expected_dates):
+            for fixture in round_fixtures:
+                self.assertEqual(fixture.date, expected)
+
+    def test_default_venue_is_the_home_team(self):
+        scheduled = schedule_fixtures(self.rounds, date(2026, 1, 3))
+        for round_fixtures in scheduled:
+            for fixture in round_fixtures:
+                self.assertEqual(fixture.venue, fixture.home)
+
+    def test_venues_mapping_overrides_default(self):
+        venues = {"A": "Riverside Park"}
+        scheduled = schedule_fixtures(self.rounds, date(2026, 1, 3), venues=venues)
+        for round_fixtures in scheduled:
+            for fixture in round_fixtures:
+                if fixture.home == "A":
+                    self.assertEqual(fixture.venue, "Riverside Park")
+                else:
+                    self.assertEqual(fixture.venue, fixture.home)
+
+    def test_matches_are_unchanged_home_away_pairs(self):
+        scheduled = schedule_fixtures(self.rounds, date(2026, 1, 3))
+        for round_fixtures, matches in zip(scheduled, self.rounds):
+            self.assertEqual(
+                [(f.home, f.away) for f in round_fixtures], matches
+            )
 
 
 if __name__ == "__main__":

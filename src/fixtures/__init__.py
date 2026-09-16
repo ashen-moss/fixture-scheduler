@@ -10,6 +10,9 @@ games rather than following raw rotation position.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from datetime import date, timedelta
+
 Match = tuple[str, str]
 Round = list[Match]
 
@@ -93,6 +96,46 @@ def _assign_home_away(raw_rounds: list[list[tuple[str, str]]], teams: list[str])
             streak[away] = streak[away] - 1 if streak[away] < 0 else -1
         rounds.append(fixtures)
     return rounds
+
+
+@dataclass(frozen=True)
+class Fixture:
+    """A single scheduled match: who, where, and when."""
+
+    home: str
+    away: str
+    date: date
+    venue: str
+
+
+def schedule_fixtures(
+    rounds: list[Round],
+    start_date: date,
+    interval: timedelta = timedelta(weeks=1),
+    venues: dict[str, str] | None = None,
+) -> list[list[Fixture]]:
+    """Attach a date and venue to every match in a round-robin schedule.
+
+    Rounds are played `interval` apart starting on `start_date`, with every
+    match in a round sharing that round's date - a real league might spread
+    a round across a weekend, but that's a presentation detail callers can
+    layer on top rather than something the scheduler should guess at.
+
+    Venue defaults to the home team's name, since a fixture is normally
+    played at the home side's ground; pass `venues` (team name -> venue
+    name) to override that for teams that play elsewhere.
+    """
+    venues = venues or {}
+    scheduled: list[list[Fixture]] = []
+    for i, matches in enumerate(rounds):
+        round_date = start_date + interval * i
+        scheduled.append(
+            [
+                Fixture(home=home, away=away, date=round_date, venue=venues.get(home, home))
+                for home, away in matches
+            ]
+        )
+    return scheduled
 
 
 def total_matches(num_teams: int, double_round: bool = False) -> int:
