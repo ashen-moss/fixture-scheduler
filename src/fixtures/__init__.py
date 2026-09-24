@@ -144,3 +144,32 @@ def total_matches(num_teams: int, double_round: bool = False) -> int:
         return 0
     single = num_teams * (num_teams - 1) // 2
     return single * 2 if double_round else single
+
+
+def generate_pool_schedule(
+    pools: dict[str, list[str]], double_round: bool = False
+) -> dict[str, list[Round]]:
+    """Generate independent round-robin schedules for each named pool.
+
+    Useful for a group stage or a league split into conferences, where
+    each pool plays a full round-robin among its own teams and never
+    against teams from another pool.
+
+    Raises ValueError if the same team appears in more than one pool -
+    that's almost always a data entry mistake, since a team can't be
+    playing two unrelated group stages at once.
+    """
+    seen: dict[str, str] = {}
+    for pool_name, teams in pools.items():
+        for team in teams:
+            if team in seen and seen[team] != pool_name:
+                raise ValueError(
+                    f"team {team!r} appears in multiple pools: "
+                    f"{seen[team]!r} and {pool_name!r}"
+                )
+            seen[team] = pool_name
+
+    return {
+        pool_name: generate_round_robin(teams, double_round=double_round)
+        for pool_name, teams in pools.items()
+    }

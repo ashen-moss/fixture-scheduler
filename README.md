@@ -71,6 +71,31 @@ match in a round sharing that date. Venue defaults to the home team's
 name; pass `venues={"Falcons": "Riverside Park", ...}` to override it for
 teams that don't play at a ground named after themselves.
 
+For a group stage or a league split into conferences, where teams only
+play others in their own pool, use `generate_pool_schedule` instead. It
+takes a mapping of pool name to team list and runs an independent
+round-robin for each one:
+
+```python
+from fixtures import generate_pool_schedule
+
+pools = {
+    "North": ["Falcons", "Hornets", "Wolves"],
+    "South": ["Otters", "Badgers", "Herons"],
+}
+schedules = generate_pool_schedule(pools)
+
+for pool_name, rounds in schedules.items():
+    print(f"Group {pool_name}")
+    for i, matches in enumerate(rounds, start=1):
+        print(f"  Round {i}")
+        for home, away in matches:
+            print(f"    {home} vs {away}")
+```
+
+It raises `ValueError` if the same team turns up in more than one pool,
+since that's almost always a typo rather than something intentional.
+
 ## CLI usage
 
 ```
@@ -99,15 +124,28 @@ output; `--interval-days` (default 7) controls the gap between rounds,
 and `--venues-file` takes a `team,venue` CSV to override the default
 home-team venue.
 
+For pool play, `--groups-file` takes a `team,group` CSV and overrides
+any positional teams or `--from-file`. Each group is scheduled on its
+own and the output is labeled by group:
+
+```
+$ fixtures --groups-file groups.csv --format csv
+group,round,home,away
+North,1,Falcons,Wolves
+North,2,Hornets,Falcons
+South,1,Otters,Herons
+...
+```
+
 ## Status
 
 Early. The scheduler itself is solid and covered by a table-driven test
 suite (`tests/test_fixtures.py`) that exercises the awkward cases: zero
 and one team, odd team counts, double round-robin, duplicate names, and
 that home/away is balanced rather than tied to rotation position.
-Date and venue assignment are in via `schedule_fixtures`. Multi-group
-leagues and export formats beyond CSV (ICS in particular) aren't built
-yet.
+Date and venue assignment are in via `schedule_fixtures`, and pool play
+via `generate_pool_schedule`. Export formats beyond CSV (ICS in
+particular) aren't built yet.
 
 ## Development
 

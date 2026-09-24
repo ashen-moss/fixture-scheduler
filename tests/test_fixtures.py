@@ -5,7 +5,12 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from fixtures import generate_round_robin, schedule_fixtures, total_matches
+from fixtures import (
+    generate_pool_schedule,
+    generate_round_robin,
+    schedule_fixtures,
+    total_matches,
+)
 
 
 def _teams_played(rounds):
@@ -179,6 +184,44 @@ class ScheduleFixturesTests(unittest.TestCase):
             self.assertEqual(
                 [(f.home, f.away) for f in round_fixtures], matches
             )
+
+
+class PoolScheduleTests(unittest.TestCase):
+    def setUp(self):
+        self.pools = {
+            "North": ["A", "B", "C"],
+            "South": ["D", "E", "F", "G"],
+        }
+
+    def test_each_pool_gets_its_own_full_round_robin(self):
+        schedules = generate_pool_schedule(self.pools)
+        for pool_name, teams in self.pools.items():
+            self.assertEqual(schedules[pool_name], generate_round_robin(teams))
+
+    def test_pools_do_not_cross_schedule(self):
+        schedules = generate_pool_schedule(self.pools)
+        for pool_name, rounds in schedules.items():
+            allowed = set(self.pools[pool_name])
+            for matches in rounds:
+                for home, away in matches:
+                    self.assertIn(home, allowed)
+                    self.assertIn(away, allowed)
+
+    def test_double_round_is_passed_through_per_pool(self):
+        schedules = generate_pool_schedule(self.pools, double_round=True)
+        for pool_name, teams in self.pools.items():
+            self.assertEqual(
+                len(schedules[pool_name]),
+                len(generate_round_robin(teams, double_round=True)),
+            )
+
+    def test_team_in_two_pools_raises(self):
+        pools = {"North": ["A", "B"], "South": ["B", "C"]}
+        with self.assertRaises(ValueError):
+            generate_pool_schedule(pools)
+
+    def test_empty_pools_dict_returns_empty_schedule(self):
+        self.assertEqual(generate_pool_schedule({}), {})
 
 
 if __name__ == "__main__":
