@@ -96,6 +96,26 @@ for pool_name, rounds in schedules.items():
 It raises `ValueError` if the same team turns up in more than one pool,
 since that's almost always a typo rather than something intentional.
 
+To get a schedule into a calendar app, `generate_ics` turns dated fixtures
+into an ICS file - each match becomes an all-day event titled `home vs
+away`, located at its venue:
+
+```python
+from fixtures import generate_ics, generate_round_robin, schedule_fixtures
+from datetime import date
+
+rounds = generate_round_robin(["Falcons", "Hornets", "Wolves", "Otters"])
+scheduled = schedule_fixtures(rounds, start_date=date(2026, 3, 7))
+fixtures = [f for round_fixtures in scheduled for f in round_fixtures]
+
+with open("season.ics", "w", newline="") as f:
+    f.write(generate_ics(fixtures))
+```
+
+It takes a flat list of `Fixture`, so a pool schedule (a dict of rounds
+per pool) needs flattening across pools first - the calendar doesn't care
+how the fixtures were grouped to produce it.
+
 ## CLI usage
 
 ```
@@ -116,13 +136,16 @@ Round 1
   2026-03-07  Falcons vs Otters  @ Falcons
   2026-03-07  Hornets vs Wolves  @ Hornets
 ...
+
+$ fixtures Falcons Hornets Wolves Otters --start-date 2026-03-07 --format ics > season.ics
 ```
 
 `teams.txt` is one team name per line. `--format csv` is meant for
-piping into a spreadsheet or another tool. `--start-date` turns on dated
-output; `--interval-days` (default 7) controls the gap between rounds,
-and `--venues-file` takes a `team,venue` CSV to override the default
-home-team venue.
+piping into a spreadsheet or another tool; `--format ics` produces a
+calendar file and requires `--start-date`, since an ICS event needs a
+date. `--start-date` turns on dated output; `--interval-days` (default 7)
+controls the gap between rounds, and `--venues-file` takes a
+`team,venue` CSV to override the default home-team venue.
 
 For pool play, `--groups-file` takes a `team,group` CSV and overrides
 any positional teams or `--from-file`. Each group is scheduled on its
@@ -143,9 +166,9 @@ Early. The scheduler itself is solid and covered by a table-driven test
 suite (`tests/test_fixtures.py`) that exercises the awkward cases: zero
 and one team, odd team counts, double round-robin, duplicate names, and
 that home/away is balanced rather than tied to rotation position.
-Date and venue assignment are in via `schedule_fixtures`, and pool play
-via `generate_pool_schedule`. Export formats beyond CSV (ICS in
-particular) aren't built yet.
+Date and venue assignment are in via `schedule_fixtures`, pool play via
+`generate_pool_schedule`, and calendar export via `generate_ics`
+(`--format ics` on the CLI).
 
 ## Development
 

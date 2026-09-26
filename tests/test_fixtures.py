@@ -6,6 +6,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from fixtures import (
+    generate_ics,
     generate_pool_schedule,
     generate_round_robin,
     schedule_fixtures,
@@ -184,6 +185,59 @@ class ScheduleFixturesTests(unittest.TestCase):
             self.assertEqual(
                 [(f.home, f.away) for f in round_fixtures], matches
             )
+
+
+class GenerateIcsTests(unittest.TestCase):
+    def setUp(self):
+        self.teams = ["A", "B", "C", "D"]
+        rounds = generate_round_robin(self.teams)
+        self.scheduled = schedule_fixtures(rounds, date(2026, 1, 3), timedelta(days=7))
+        self.fixtures = [f for matches in self.scheduled for f in matches]
+
+    def test_calendar_has_matching_begin_and_end(self):
+        ics = generate_ics(self.fixtures)
+        self.assertTrue(ics.startswith("BEGIN:VCALENDAR\r\n"))
+        self.assertTrue(ics.endswith("END:VCALENDAR\r\n"))
+
+    def test_one_vevent_per_fixture(self):
+        ics = generate_ics(self.fixtures)
+        self.assertEqual(ics.count("BEGIN:VEVENT"), len(self.fixtures))
+        self.assertEqual(ics.count("END:VEVENT"), len(self.fixtures))
+
+    def test_vevent_uses_all_day_date_values_and_next_day_end(self):
+        ics = generate_ics(self.fixtures)
+        first = self.fixtures[0]
+        start = first.date.strftime("%Y%m%d")
+        end = (first.date + timedelta(days=1)).strftime("%Y%m%d")
+        self.assertIn(f"DTSTART;VALUE=DATE:{start}", ics)
+        self.assertIn(f"DTEND;VALUE=DATE:{end}", ics)
+
+    def test_summary_and_location_are_present(self):
+        ics = generate_ics(self.fixtures)
+        first = self.fixtures[0]
+        self.assertIn(f"SUMMARY:{first.home} vs {first.away}", ics)
+        self.assertIn(f"LOCATION:{first.venue}", ics)
+
+    def test_uids_are_unique(self):
+        ics = generate_ics(self.fixtures)
+        uids = [line for line in ics.split("\r\n") if line.startswith("UID:")]
+        self.assertEqual(len(uids), len(set(uids)))
+
+    def test_special_characters_are_escaped(self):
+        fixtures = [
+            schedule_fixtures(
+                generate_round_robin(["Home, Inc.", "Away; Co."]),
+                date(2026, 1, 3),
+            )[0][0]
+        ]
+        ics = generate_ics(fixtures)
+        self.assertIn("Home\\, Inc.", ics)
+        self.assertIn("Away\\; Co.", ics)
+
+    def test_empty_fixture_list_still_produces_valid_wrapper(self):
+        ics = generate_ics([])
+        self.assertEqual(ics, "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//fixture-scheduler//EN\r\n"
+                          "CALSCALE:GREGORIAN\r\nX-WR-CALNAME:Fixture Schedule\r\nEND:VCALENDAR\r\n")
 
 
 class PoolScheduleTests(unittest.TestCase):

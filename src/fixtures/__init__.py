@@ -11,7 +11,7 @@ games rather than following raw rotation position.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 Match = tuple[str, str]
 Round = list[Match]
@@ -136,6 +136,68 @@ def schedule_fixtures(
             ]
         )
     return scheduled
+
+
+def _ics_escape(text: str) -> str:
+    """Escape text for use in an ICS field value (RFC 5545 section 3.3.11)."""
+    return (
+        text.replace("\\", "\\\\")
+        .replace(";", "\\;")
+        .replace(",", "\\,")
+        .replace("\n", "\\n")
+    )
+
+
+def _ics_fold(line: str) -> str:
+    """Fold a content line to 75 octets per RFC 5545, continuation lines indented by one space.
+
+    Assumes team/venue names are short enough that char count is a fair stand-in
+    for octet count; this only matters once a line is already unusually long.
+    """
+    if len(line.encode("utf-8")) <= 75:
+        return line
+    chunks = [line[:75]]
+    rest = line[75:]
+    while rest:
+        chunks.append(" " + rest[:74])
+        rest = rest[74:]
+    return "\r\n".join(chunks)
+
+
+def generate_ics(fixtures: list[Fixture], calendar_name: str = "Fixture Schedule") -> str:
+    """Render dated fixtures as an ICS calendar (RFC 5545) of all-day events.
+
+    Each fixture becomes one VEVENT spanning its match date, titled
+    "home vs away" and located at its venue. Takes a flat list of Fixture,
+    so callers with per-round or per-pool schedules should flatten first -
+    the calendar doesn't care how the fixtures were grouped to produce it.
+    """
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    lines = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//fixture-scheduler//EN",
+        "CALSCALE:GREGORIAN",
+        f"X-WR-CALNAME:{_ics_escape(calendar_name)}",
+    ]
+    for i, fixture in enumerate(fixtures):
+        start = fixture.date.strftime("%Y%m%d")
+        end = (fixture.date + timedelta(days=1)).strftime("%Y%m%d")
+        uid = f"{start}-{i}-{fixture.home}-{fixture.away}@fixture-scheduler".replace(" ", "-")
+        lines.extend(
+            [
+                "BEGIN:VEVENT",
+                f"UID:{uid}",
+                f"DTSTAMP:{stamp}",
+                f"DTSTART;VALUE=DATE:{start}",
+                f"DTEND;VALUE=DATE:{end}",
+                f"SUMMARY:{_ics_escape(fixture.home)} vs {_ics_escape(fixture.away)}",
+                f"LOCATION:{_ics_escape(fixture.venue)}",
+                "END:VEVENT",
+            ]
+        )
+    lines.append("END:VCALENDAR")
+    return "\r\n".join(_ics_fold(line) for line in lines) + "\r\n"
 
 
 def total_matches(num_teams: int, double_round: bool = False) -> int:

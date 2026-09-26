@@ -7,7 +7,13 @@ import csv
 import sys
 from datetime import date, timedelta
 
-from fixtures import Fixture, generate_pool_schedule, generate_round_robin, schedule_fixtures
+from fixtures import (
+    Fixture,
+    generate_ics,
+    generate_pool_schedule,
+    generate_round_robin,
+    schedule_fixtures,
+)
 
 
 def _read_teams(path: str | None, inline: list[str]) -> list[str]:
@@ -104,6 +110,19 @@ def _format_text_dated_pools(pool_schedules: dict[str, list[list[Fixture]]]) -> 
     return "\n".join(lines)
 
 
+def _flatten_fixtures(rounds: list[list[Fixture]]) -> list[Fixture]:
+    return [fixture for matches in rounds for fixture in matches]
+
+
+def _flatten_pool_fixtures(pool_schedules: dict[str, list[list[Fixture]]]) -> list[Fixture]:
+    return [
+        fixture
+        for rounds in pool_schedules.values()
+        for matches in rounds
+        for fixture in matches
+    ]
+
+
 def _format_csv_dated_pools(pool_schedules: dict[str, list[list[Fixture]]]) -> str:
     lines = ["group,round,date,home,away,venue"]
     for pool_name, rounds in pool_schedules.items():
@@ -137,9 +156,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--format",
-        choices=("text", "csv"),
+        choices=("text", "csv", "ics"),
         default="text",
-        help="output format (default: text)",
+        help="output format (default: text); ics requires --start-date",
     )
     parser.add_argument(
         "--start-date",
@@ -175,6 +194,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.venues_file and not args.start_date:
         parser.error("--venues-file requires --start-date")
 
+    if args.format == "ics" and not args.start_date:
+        parser.error("--format ics requires --start-date")
+
     if args.groups_file:
         pools = _read_groups(args.groups_file)
         if any(len(teams) < 2 for teams in pools.values()):
@@ -199,6 +221,9 @@ def main(argv: list[str] | None = None) -> int:
                 pool_name: schedule_fixtures(rounds, start, interval, venues)
                 for pool_name, rounds in pool_schedules.items()
             }
+            if args.format == "ics":
+                print(generate_ics(_flatten_pool_fixtures(dated_pool_schedules)), end="")
+                return 0
             formatter = (
                 _format_csv_dated_pools if args.format == "csv" else _format_text_dated_pools
             )
@@ -230,6 +255,9 @@ def main(argv: list[str] | None = None) -> int:
         dated_rounds = schedule_fixtures(
             rounds, start, timedelta(days=args.interval_days), venues
         )
+        if args.format == "ics":
+            print(generate_ics(_flatten_fixtures(dated_rounds)), end="")
+            return 0
         formatter = _format_csv_dated if args.format == "csv" else _format_text_dated
         print(formatter(dated_rounds))
         return 0
